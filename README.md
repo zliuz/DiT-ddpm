@@ -1,0 +1,116 @@
+# Tiny DiT × DDPM：从零学习扩散模型
+
+面向已经理解 Transformer、希望亲手实现扩散模型的学习项目。目标是在 **MacBook Air M5 / 24 GB** 上，使用 PyTorch 实现 MNIST 手写数字生成：先无条件生成，再指定数字类别生成。
+
+**M0 已完成。下一阶段：M1 数据加载与可视化（未开始）。M1–M7 的模型代码尚未实现。**
+
+## 学习目标
+
+- 理解 DDPM 的前向加噪、噪声预测目标和反向采样。
+- 将图片转换为 patch token，用小型 Transformer 预测噪声。
+- 独立实现训练循环、保存与恢复、生成图片和类别条件。
+- 最后对照原版 DiT，理解 adaLN-Zero、潜空间扩散与本项目的区别。
+
+DDPM 是扩散训练与采样的方法，Transformer 是去噪网络的架构。本项目首先直接在 MNIST 像素空间建模；它是教学用的简化实现，并非原版 DiT 的完整复现。
+
+## Milestone 路线
+
+| 阶段 | 内容 | 验收产物 | 状态 |
+| --- | --- | --- | --- |
+| M0 | uv、Python、PyTorch、Git 与设备检查 | 环境检查通过，依赖已锁定 | 已完成 |
+| M1 | MNIST 加载、归一化、可视化 | 原始图片网格与数据形状检查 | 未开始 |
+| M2 | DDPM 噪声日程与前向加噪 | 同一图片的逐步加噪图、数学性质检查 | 未开始 |
+| M3 | Tiny DiT 与时间步条件 | 输入/输出形状正确，前向和反向传播通过 | 未开始 |
+| M4 | 噪声预测训练与小样本调试 | 小样本训练曲线、checkpoint 与恢复验证 | 未开始 |
+| M5 | DDPM 反向采样与完整训练 | 固定种子生成图、去噪过程图 | 未开始 |
+| M6 | 数字类别条件与 CFG | 按类别排列的生成图与 CFG 对照 | 未开始 |
+| M7 | adaLN-Zero 与原版 DiT 对照（选修） | 结构对照笔记与一次受控实验 | 未开始 |
+
+每阶段的原理、实现任务和验收标准见 [docs/MILESTONES.md](docs/MILESTONES.md)。完成当前阶段并能解释结果后，再进入下一阶段。
+
+## 环境与常用命令
+
+在终端进入项目目录：
+
+```bash
+cd /Users/zliu/Projects/DiT/ddpm
+uv sync --locked
+uv run python scripts/check_env.py
+```
+
+项目使用 Python 3.12；uv 会按 `.python-version` 选择解释器，在 `.venv` 创建环境，按 `uv.lock` 安装依赖。日常使用 `uv run`，无需手动激活环境。首次安装需要网络。
+
+```bash
+# 严格检查本机 MPS 是否可用，并实际运行一次训练运算
+uv run python scripts/check_env.py --device mps
+
+# CPU 对照检查
+uv run python scripts/check_env.py --device cpu
+
+# 代码检查
+uv run ruff check .
+uv run ruff format --check .
+
+# M2 开始添加数学性质等测试后使用
+uv run pytest
+```
+
+依赖由 uv 管理：使用 `uv add 包名` 或 `uv add --dev 包名` 添加依赖；同时提交 `pyproject.toml` 和 `uv.lock`。有意升级时使用 `uv lock --upgrade` 并重新验证环境。
+
+### M0 验证记录（2026-10-28）
+
+- macOS 26.6 / arm64，Python 3.12.15，uv 0.13.5。
+- PyTorch 2.14.1、torchvision 0.29.1、matplotlib 3.11.2、tqdm 4.70.1。
+- `uv sync --locked` 成功，MPS 构建与可用性均为 `True`。
+- MPS 和 CPU 上均通过注意力网络的前向、反向、有限梯度与参数更新检查。
+- torchvision 归一化与 matplotlib 绘图检查通过；Ruff 检查和格式检查通过。
+- 此记录仅验证环境；尚未下载 MNIST、训练扩散模型或验证生成质量。
+
+## 初始实验配置
+
+以下是后续实现时的起点，目前尚无训练入口。
+
+| 项目 | 初始配置 |
+| --- | --- |
+| 数据 | MNIST，`[B, 1, 28, 28]`，归一化至 `[-1, 1]` |
+| Patch | `4 × 4`，49 个 token |
+| Transformer | 4 层，隐藏维度 128，4 个注意力头，MLP ratio 4 |
+| 条件 | 先时间步；M6 再加入类别 |
+| 输出 | 与图片同形状的噪声预测；不学习方差 |
+| 扩散 | DDPM，线性 beta 日程，初始 T=1000 |
+| 数值精度 | float32 |
+| Batch size | 从 64 试起，按实测速度与内存调整 |
+| 数据加载 | 先 `num_workers=0`，验证正确性后再调整 |
+| 设备 | MPS 可用时使用 MPS，CPU 用于对照与调试 |
+
+训练耗时需通过实际运行测量。先用少量数据和短运行验证逻辑，再执行完整训练。遇到 MPS 不支持的运算时先定位问题，使用 CPU 对照，不默认开启隐式 CPU fallback。
+
+## 目录
+
+```text
+ddpm/
+├── AGENTS.md             # 后续协作与逐步教学约定
+├── README.md
+├── pyproject.toml
+├── uv.lock
+├── .python-version
+├── docs/
+│   └── MILESTONES.md
+└── scripts/
+    └── check_env.py      # 仅检查环境，不实现扩散模型
+```
+
+后续按阶段创建 `ddpm/`（Python 模块）、`tests/` 和训练/采样脚本。数据存入 `data/`，实验图片、日志和权重存入 `outputs/`，均不进入 Git。便于学习的结果说明和小型示例图可有意保存至 `docs/`。
+
+## Git
+
+远程地址：`git@github.com:zliuz/DiT-ddpm.git`。本地默认分支为 `main`。远程绑定不表示已经推送或验证远程权限。
+
+建议在每个 milestone 验收后提交一次。提交应包含对应代码、必要检查与学习记录；不要提交数据集、虚拟环境或权重。
+
+## 参考资料
+
+- [DDPM 论文](https://arxiv.org/abs/2006.11239)
+- [DiT 官方实现](https://github.com/facebookresearch/DiT)
+- [PyTorch MPS 文档](https://docs.pytorch.org/docs/stable/notes/mps.html)
+- [uv 项目管理](https://docs.astral.sh/uv/guides/projects/)
