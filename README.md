@@ -2,7 +2,7 @@
 
 面向已经理解 Transformer、希望亲手实现扩散模型的学习项目。目标是在 **MacBook Air M5 / 24 GB** 上，使用 PyTorch 实现 MNIST 手写数字生成：先无条件生成，再指定数字类别生成。
 
-**M0 已完成。下一阶段：M1 数据加载与可视化（未开始）。M1–M7 的模型代码尚未实现。**
+**M0 已完成，M1 数据加载与可视化已实现并通过运行验收。请完成 M1 阅读与自检后进入 M2；M2–M7 尚未实现。**
 
 ## 学习目标
 
@@ -18,7 +18,7 @@ DDPM 是扩散训练与采样的方法，Transformer 是去噪网络的架构。
 | 阶段 | 内容 | 验收产物 | 状态 |
 | --- | --- | --- | --- |
 | M0 | uv、Python、PyTorch、Git 与设备检查 | 环境检查通过，依赖已锁定 | 已完成 |
-| M1 | MNIST 加载、归一化、可视化 | 原始图片网格与数据形状检查 | 未开始 |
+| M1 | MNIST 加载、归一化、可视化 | 原始图片网格与数据形状检查 | 运行验收通过，待学习自检 |
 | M2 | DDPM 噪声日程与前向加噪 | 同一图片的逐步加噪图、数学性质检查 | 未开始 |
 | M3 | Tiny DiT 与时间步条件 | 输入/输出形状正确，前向和反向传播通过 | 未开始 |
 | M4 | 噪声预测训练与小样本调试 | 小样本训练曲线、checkpoint 与恢复验证 | 未开始 |
@@ -27,6 +27,19 @@ DDPM 是扩散训练与采样的方法，Transformer 是去噪网络的架构。
 | M7 | adaLN-Zero 与原版 DiT 对照（选修） | 结构对照笔记与一次受控实验 | 未开始 |
 
 每阶段的原理、实现任务和验收标准见 [docs/MILESTONES.md](docs/MILESTONES.md)。完成当前阶段并能解释结果后，再进入下一阶段。
+
+## M1：开始运行与阅读
+
+```bash
+uv run python -m scripts.inspect_data
+uv run python -m scripts.inspect_data --split test --no-download
+```
+
+首次运行自动下载 MNIST，之后读取本地缓存。命令扫描所选 split 的全部 batch，将带数字标签的图片网格和 JSON 检查报告保存在 `outputs/m1/`。
+
+先读 [M1 学习说明](docs/M1.md)，再读 [数据模块](ddpm/data.py) 和 [检查脚本](scripts/inspect_data.py)。本阶段只处理 CPU 上的数据，不需要启动 MPS 或训练模型。
+
+实测训练集 60,000 张、测试集 10,000 张；首批图片为 `[64, 1, 28, 28]` float32，像素范围 `[-1, 1]`，标签为 `[64]` int64。最后一批分别为 32 和 16 张，均已保留。原始像素往返检查、图片与原始标签对应检查、固定 seed 的打乱顺序检查均通过。
 
 ## 环境与常用命令
 
@@ -64,7 +77,7 @@ uv run pytest
 - `uv sync --locked` 成功，MPS 构建与可用性均为 `True`。
 - MPS 和 CPU 上均通过注意力网络的前向、反向、有限梯度与参数更新检查。
 - torchvision 归一化与 matplotlib 绘图检查通过；Ruff 检查和格式检查通过。
-- 此记录仅验证环境；尚未下载 MNIST、训练扩散模型或验证生成质量。
+- 此记录仅验证 M0 环境；M0 验证时尚未下载 MNIST、训练扩散模型或验证生成质量。
 
 ## 初始实验配置
 
@@ -94,13 +107,19 @@ ddpm/
 ├── pyproject.toml
 ├── uv.lock
 ├── .python-version
+├── ddpm/
+│   ├── __init__.py
+│   └── data.py           # MNIST、归一化与 DataLoader
 ├── docs/
-│   └── MILESTONES.md
+│   ├── MILESTONES.md
+│   └── M1.md             # M1 阅读说明、运行结果与练习
 └── scripts/
-    └── check_env.py      # 仅检查环境，不实现扩散模型
+    ├── __init__.py
+    ├── check_env.py      # 仅检查环境
+    └── inspect_data.py   # M1 扫描、绘图与数据报告
 ```
 
-后续按阶段创建 `ddpm/`（Python 模块）、`tests/` 和训练/采样脚本。数据存入 `data/`，实验图片、日志和权重存入 `outputs/`，均不进入 Git。便于学习的结果说明和小型示例图可有意保存至 `docs/`。
+后续按阶段扩展 `ddpm/`，创建 `tests/` 和训练/采样脚本。数据存入 `data/`，实验图片、日志和权重存入 `outputs/`，均不进入 Git。便于学习的结果说明和小型示例图可有意保存至 `docs/`。
 
 ## Git
 

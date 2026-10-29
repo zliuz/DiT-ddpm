@@ -70,7 +70,7 @@ def main() -> None:
     print(f"Device: {device}")
     print(f"Attention training step: OK (loss={loss.item():.6f})")
     print(f"torchvision {torchvision.__version__} transforms and matplotlib: OK")
-    print("Environment ready. Next milestone: M1 (MNIST data and visualization).")
+    print("Environment ready. See README.md for the current learning milestone.")
 
 
 if __name__ == "__main__":
