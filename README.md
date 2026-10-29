@@ -2,7 +2,7 @@
 
 面向已经理解 Transformer、希望亲手实现扩散模型的学习项目。目标是在 **MacBook Air M5 / 24 GB** 上，使用 PyTorch 实现 MNIST 手写数字生成：先无条件生成，再指定数字类别生成。
 
-**M0 已完成，M1 数据加载与可视化已实现并通过运行验收。请完成 M1 阅读与自检后进入 M2；M2–M7 尚未实现。**
+**M0 已完成，M1、M2 已通过运行验收；下一阶段为 M3 Tiny DiT 去噪网络。M3–M7 尚未实现。**
 
 ## 学习目标
 
@@ -19,7 +19,7 @@ DDPM 是扩散训练与采样的方法，Transformer 是去噪网络的架构。
 | --- | --- | --- | --- |
 | M0 | uv、Python、PyTorch、Git 与设备检查 | 环境检查通过，依赖已锁定 | 已完成 |
 | M1 | MNIST 加载、归一化、可视化 | 原始图片网格与数据形状检查 | 运行验收通过，待学习自检 |
-| M2 | DDPM 噪声日程与前向加噪 | 同一图片的逐步加噪图、数学性质检查 | 未开始 |
+| M2 | DDPM 噪声日程与前向加噪 | 同一图片的逐步加噪图、数学性质检查 | 运行验收通过 |
 | M3 | Tiny DiT 与时间步条件 | 输入/输出形状正确，前向和反向传播通过 | 未开始 |
 | M4 | 噪声预测训练与小样本调试 | 小样本训练曲线、checkpoint 与恢复验证 | 未开始 |
 | M5 | DDPM 反向采样与完整训练 | 固定种子生成图、去噪过程图 | 未开始 |
@@ -40,6 +40,21 @@ uv run python -m scripts.inspect_data --split test --no-download
 先读 [M1 学习说明](docs/M1.md)，再读 [数据模块](ddpm/data.py) 和 [检查脚本](scripts/inspect_data.py)。本阶段只处理 CPU 上的数据，不需要启动 MPS 或训练模型。
 
 实测训练集 60,000 张、测试集 10,000 张；首批图片为 `[64, 1, 28, 28]` float32，像素范围 `[-1, 1]`，标签为 `[64]` int64。最后一批分别为 32 和 16 张，均已保留。原始像素往返检查、图片与原始标签对应检查、固定 seed 的打乱顺序检查均通过。
+
+## M2：前向加噪
+
+学习者已完成 [diffusion.py](ddpm/diffusion.py) 中的噪声日程、系数提取、随机时间步和前向加噪。公式、形状与自检题见 [M2 学习说明](docs/M2.md)。
+
+```bash
+# 按模块复查，例如噪声日程
+uv run pytest tests/test_diffusion.py -q -k schedule
+
+# M2 独立验收与可视化（之后新增阶段的未完成练习不会影响此命令）
+uv run pytest tests/test_diffusion.py -q
+uv run python -m scripts.visualize_forward
+```
+
+2026-10-29 验收：15 项测试全部通过，代码及格式检查通过；加噪图片、噪声日程图与原始数值报告已生成于 `outputs/m2/` 并查看。默认日程最后一步 alpha_bar 约为 `4.03583e-5`，核心结果保留了超出 `[-1,1]` 的噪声像素。
 
 ## 环境与常用命令
 
@@ -64,7 +79,7 @@ uv run python scripts/check_env.py --device cpu
 uv run ruff check .
 uv run ruff format --check .
 
-# M2 开始添加数学性质等测试后使用
+# M2 验收测试（TODO 未完成时会失败）
 uv run pytest
 ```
 
@@ -109,17 +124,22 @@ ddpm/
 ├── .python-version
 ├── ddpm/
 │   ├── __init__.py
-│   └── data.py           # MNIST、归一化与 DataLoader
+│   ├── data.py           # MNIST、归一化与 DataLoader
+│   └── diffusion.py      # M2 核心练习 TODO 1–4
 ├── docs/
 │   ├── MILESTONES.md
-│   └── M1.md             # M1 阅读说明、运行结果与练习
+│   ├── M1.md             # M1 阅读说明、运行结果与练习
+│   └── M2.md             # M2 公式、练习顺序与验收方式
+├── tests/
+│   └── test_diffusion.py # M2 数学性质与边界检查
 └── scripts/
     ├── __init__.py
     ├── check_env.py      # 仅检查环境
-    └── inspect_data.py   # M1 扫描、绘图与数据报告
+    ├── inspect_data.py   # M1 扫描、绘图与数据报告
+    └── visualize_forward.py # M2 填写完成后绘图
 ```
 
-后续按阶段扩展 `ddpm/`，创建 `tests/` 和训练/采样脚本。数据存入 `data/`，实验图片、日志和权重存入 `outputs/`，均不进入 Git。便于学习的结果说明和小型示例图可有意保存至 `docs/`。
+后续按阶段扩展 `ddpm/`、`tests/`，创建训练/采样脚本。数据存入 `data/`，实验图片、日志和权重存入 `outputs/`，均不进入 Git。便于学习的结果说明和小型示例图可有意保存至 `docs/`。
 
 ## Git
 
