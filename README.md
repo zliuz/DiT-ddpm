@@ -2,7 +2,7 @@
 
 面向已经理解 Transformer、希望亲手实现扩散模型的学习项目。目标是在 **MacBook Air M5 / 24 GB** 上，使用 PyTorch 实现 MNIST 手写数字生成：先无条件生成，再指定数字类别生成。
 
-**M0–M4 已完成并通过运行验收：训练循环、checkpoint 保存与恢复均已验证。下一阶段为 M5 反向采样，M5–M7 尚未实现。**
+**M0–M5 已完成并通过运行验收：反向采样、固定种子生成与完整 MNIST 训练均已验证。下一阶段为 M6 类别条件与 CFG，M6–M7 尚未实现。**
 
 ## 学习目标
 
@@ -22,7 +22,7 @@ DDPM 是扩散训练与采样的方法，Transformer 是去噪网络的架构。
 | M2 | DDPM 噪声日程与前向加噪 | 同一图片的逐步加噪图、数学性质检查 | 运行验收通过 |
 | M3 | Tiny DiT 与时间步条件 | 输入/输出形状正确，前向和反向传播通过 | CPU/MPS 运行验收通过 |
 | M4 | 噪声预测训练与小样本调试 | 小样本训练曲线、checkpoint 与恢复验证 | 运行验收通过 |
-| M5 | DDPM 反向采样与完整训练 | 固定种子生成图、去噪过程图 | 未开始 |
+| M5 | DDPM 反向采样与完整训练 | 固定种子生成图、去噪过程图 | 运行验收通过 |
 | M6 | 数字类别条件与 CFG | 按类别排列的生成图与 CFG 对照 | 未开始 |
 | M7 | adaLN-Zero 与原版 DiT 对照（选修） | 结构对照笔记与一次受控实验 | 未开始 |
 
@@ -54,7 +54,7 @@ uv run pytest tests/test_diffusion.py -q
 uv run python -m scripts.visualize_forward
 ```
 
-2026-10-29 验收：15 项测试全部通过，代码及格式检查通过；加噪图片、噪声日程图与原始数值报告已生成于 `outputs/m2/` 并查看。默认日程最后一步 alpha_bar 约为 `4.03583e-5`，核心结果保留了超出 `[-1,1]` 的噪声像素。
+2026-10-29 验收：15 项测试全部通过，代码及格式检查通过；加噪图片、噪声日程图与原始数值报告已生成于 `outputs/m2/` 并查看。默认日程最后一步 $\bar{\alpha}_t$ 约为 $4.03583\times 10^{-5}$，核心结果保留了超出 $[-1,1]$ 的噪声像素。
 
 ## M3：Tiny DiT 去噪网络
 
@@ -81,7 +81,21 @@ uv run pytest tests/test_training.py -q
 uv run python -m scripts.train --mode overfit --device cpu --steps 20 --output-dir outputs/m4/cpu_smoke
 ```
 
-2026-10-31 验收：M4 的 27 项测试与全量 64 项测试全部通过，代码与格式检查通过。CPU 固定目标 20 步 loss 从 1.449172 降到 0.207118（0.21 s）；MPS 固定目标 100 步降到 0.023481（3.14 s），恢复后再 100 步降到 0.001763（step 100→200）；随机目标 100 步 loss 正常波动，恢复 20 步到 step 120。两段恢复实验的累计 loss 前缀与保存前完全一致。固定目标拟合只验证训练链路，生成质量留待 M5 反向采样检查。
+2026-10-31 验收：M4 的 27 项测试与当时全量 64 项测试全部通过，代码与格式检查通过。CPU 固定目标 20 步 loss 从 1.449172 降到 0.207118（0.21 s）；MPS 固定目标 100 步降到 0.023481（3.14 s），恢复后再 100 步降到 0.001763（step 100→200）；随机目标 100 步 loss 正常波动，恢复 20 步到 step 120。两段恢复实验的累计 loss 前缀与保存前完全一致。固定目标拟合只验证训练链路，生成质量留待 M5 反向采样检查。
+
+## M5：DDPM 反向采样与完整训练
+
+学习者已完成 [sampling.py](ddpm/sampling.py) 中的干净图片估计、后验均值、单步反向更新与完整采样循环；本阶段选择真实后验方差 $\tilde{\beta}$，$t=0$ 时方差为零。公式、下标约定与验收记录见 [M5 学习说明](docs/M5.md)。
+
+```bash
+uv run pytest tests/test_sampling.py -q
+uv run python -m scripts.sample --checkpoint outputs/m5/full_10k/checkpoint.pt \
+  --device mps --seed 0 --num-images 16 --output-dir outputs/m5/final_10k
+```
+
+配套脚本：`scripts/sample.py` 从 checkpoint 生成固定种子样本网格与去噪过程图；`scripts/train_full.py` 遍历完整 MNIST 训练并定期采样。
+
+2026-11-01 验收：M5 的 23 项测试与全量 87 项测试全部通过，代码与格式检查通过。从 M4 checkpoint 采样在 CPU/MPS 均成功，最终像素范围几乎一致（`-94.0817/119.9853` 与 `-94.0818/119.9856`）。完整 MNIST 训练使用 batch 64、lr 1e-3、T=1000：MPS 上 3000 步 loss `1.414083 → 0.045578`，续训至 10000 步为 `0.038215`；checkpoint 恢复 `3000 → 3010` 正常。固定种子样本网格中可见多个带笔画结构的数字形状；原始采样不裁剪，只在绘图时裁到 `[0,1]`。产物保存在 `outputs/m5/`。
 
 ## 环境与常用命令
 
@@ -154,24 +168,29 @@ ddpm/
 │   ├── data.py           # MNIST、归一化与 DataLoader
 │   ├── diffusion.py      # M2 已完成的前向加噪
 │   ├── model.py          # M3 已完成的 Tiny DiT 噪声预测器
-│   └── training.py       # M4 已完成的训练循环与 checkpoint 恢复
+│   ├── training.py       # M4 已完成的训练循环与 checkpoint 恢复
+│   └── sampling.py       # M5 已完成的 DDPM 反向采样
 ├── docs/
 │   ├── MILESTONES.md
 │   ├── M1.md             # M1 阅读说明、运行结果与练习
 │   ├── M2.md             # M2 公式、练习顺序与验收记录
 │   ├── M3.md             # M3 网络结构、练习顺序与验收记录
-│   └── M4.md             # M4 训练、checkpoint、分步练习与验收方式
+│   ├── M4.md             # M4 训练、checkpoint、分步练习与验收方式
+│   └── M5.md             # M5 反向采样、完整训练与验收方式
 ├── tests/
 │   ├── test_diffusion.py # M2 数学性质与边界检查
 │   ├── test_model.py     # M3 像素顺序、条件、注意力与梯度
-│   └── test_training.py  # M4 目标、梯度更新、拟合与恢复连续性
+│   ├── test_training.py  # M4 目标、梯度更新、拟合与恢复连续性
+│   └── test_sampling.py  # M5 后验均值、单步更新、循环与复现性
 └── scripts/
     ├── __init__.py
     ├── check_env.py      # 仅检查环境
     ├── inspect_data.py   # M1 扫描、绘图与数据报告
     ├── visualize_forward.py # M2 前向加噪绘图
     ├── check_model.py    # M3 CPU/MPS 前向、反向与参数更新检查
-    └── train.py          # M4 小子集训练入口
+    ├── train.py          # M4 小子集训练入口
+    ├── sample.py         # M5 checkpoint 采样、样本网格与去噪过程图
+    └── train_full.py     # M5 完整 MNIST 训练入口，定期采样
 ```
 
 后续按阶段扩展 `ddpm/`、`tests/`，创建训练/采样脚本。数据存入 `data/`，实验图片、日志和权重存入 `outputs/`，均不进入 Git。便于学习的结果说明和小型示例图可有意保存至 `docs/`。
